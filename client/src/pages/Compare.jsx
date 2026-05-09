@@ -24,7 +24,7 @@ const STD_LEVEL_DESC = {
 export function ComparePage() {
   const [levelMap, setLevelMap] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCompanies, setSelectedCompanies] = useState(['', '', '', '']);
+  const [selectedCompanies, setSelectedCompanies] = useState([]);
 
   useEffect(() => {
     api.getLevelMap().then(data => {
@@ -35,10 +35,14 @@ export function ComparePage() {
 
   const companyNames = levelMap.map(c => capitalizeCompany(c.company));
 
-  const handleSelect = (index, value) => {
-    const next = [...selectedCompanies];
-    next[index] = value;
-    setSelectedCompanies(next);
+  const handleSelect = (value) => {
+    if (!value || selectedCompanies.includes(value)) return;
+    if (selectedCompanies.length >= 4) return;
+    setSelectedCompanies([...selectedCompanies, value]);
+  };
+
+  const handleRemove = (name) => {
+    setSelectedCompanies(selectedCompanies.filter(c => c !== name));
   };
 
   const activeCompanies = selectedCompanies
@@ -90,19 +94,38 @@ export function ComparePage() {
         <p className="text-body-md text-muted">See how internal company levels stack up. Heights represent years of experience bands.</p>
       </div>
 
-      {/* Company Selectors */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-md">
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} className="flex flex-col gap-xs">
-            <label className="text-body-sm font-semibold text-ink">Company {i + 1}</label>
-            <SearchableSelect
-              options={companyNames}
-              value={selectedCompanies[i]}
-              onChange={(val) => handleSelect(i, val)}
-              placeholder="Select..."
-            />
+      {/* Company Selector */}
+      <div className="flex flex-col gap-md max-w-[600px]">
+        <div className="flex flex-col gap-xs">
+          <label className="text-body-sm font-semibold text-ink">
+            Add Company to Compare {selectedCompanies.length >= 4 ? '(Max 4 Selected)' : ''}
+          </label>
+          <SearchableSelect
+            options={companyNames.filter(c => !selectedCompanies.includes(c))}
+            value=""
+            onChange={(val) => handleSelect(val)}
+            placeholder={selectedCompanies.length >= 4 ? "Max companies reached" : "Search to add..."}
+            disabled={selectedCompanies.length >= 4}
+          />
+        </div>
+        
+        {/* Selected Companies Chips */}
+        {selectedCompanies.length > 0 && (
+          <div className="flex flex-wrap gap-sm items-center">
+            {selectedCompanies.map(name => (
+              <Badge key={name} variant="default" className="flex items-center gap-2 pr-1 border border-hairline bg-white shadow-sm hover:shadow transition-shadow">
+                <span>{name}</span>
+                <button 
+                  onClick={() => handleRemove(name)}
+                  className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-surface-soft text-muted hover:text-ink transition-colors"
+                  aria-label={`Remove ${name}`}
+                >
+                  &times;
+                </button>
+              </Badge>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Stacked Level Comparison */}
