@@ -1,3 +1,4 @@
 {
-  "packages": ["nodejs"]
+  "$schema": "https://schema.railpack.com",
+  "provider": "node"
 }
