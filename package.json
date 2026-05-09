@@ -1,0 +1,10 @@
+{
+  "name": "thenorm",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "cd client && npm install && cd ../server && npm install",
+    "build": "cd client && npm run build && cd ../server && npx prisma generate",
+    "start": "cd server && npm start"
+  }
+}
