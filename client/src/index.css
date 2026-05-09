@@ -1,0 +1,32 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+/* Fallback letter spacings for display sizes to mimic Cal Sans */
+@layer utilities {
+  .text-display-xl {
+    @apply text-[64px] font-semibold leading-[1.05] tracking-tightest;
+  }
+  .text-display-lg {
+    @apply text-[48px] font-semibold leading-[1.1] tracking-tighter;
+  }
+  .text-display-md {
+    @apply text-[36px] font-semibold leading-[1.15] tracking-tight;
+  }
+  .text-display-sm {
+    @apply text-[28px] font-semibold leading-[1.2] tracking-snug;
+  }
+  
+  .text-title-lg {
+    @apply text-[22px] font-semibold leading-[1.3] tracking-[-0.3px];
+  }
+  .text-title-md {
+    @apply text-[18px] font-semibold leading-[1.4] tracking-normal;
+  }
+  .text-title-sm {
+    @apply text-[16px] font-semibold leading-[1.4] tracking-normal;
+  }
+}
+
+body {
+  @apply bg-canvas text-body font-sans antialiased;
+}
