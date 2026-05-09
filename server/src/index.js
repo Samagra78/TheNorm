@@ -490,7 +490,11 @@ app.get('/api/standardized-levels', async (req, res) => {
 // 8. GET /level-map — Per-company internal level breakdown for stacked comparison
 app.get('/api/level-map', async (req, res) => {
   try {
-    const salaries = await prisma.salary.findMany();
+    const { location } = req.query;
+    const where = {};
+    if (location) where.location = { contains: location, mode: 'insensitive' };
+
+    const salaries = await prisma.salary.findMany({ where });
     const avg = arr => arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
     // Group by company → internal level

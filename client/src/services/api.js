@@ -67,8 +67,9 @@ export const api = {
   },
 
   // Get per-company internal level map for stacked comparison
-  getLevelMap: async () => {
-    const response = await axios.get(`${API_BASE_URL}/level-map`);
+  getLevelMap: async (location) => {
+    const params = location ? { location } : {};
+    const response = await axios.get(`${API_BASE_URL}/level-map`, { params });
     return response.data.data;
   }
 };

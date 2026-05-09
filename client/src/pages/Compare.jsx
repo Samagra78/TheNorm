@@ -3,7 +3,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { api } from '../services/api';
-import { formatCurrency, capitalizeCompany } from '../utils/formatters';
+import { formatCurrency, capitalizeCompany, getCountryFromLocation } from '../utils/formatters';
 
 const STD_LEVEL_SHADES = {
   L1: '#f8f9fa',
@@ -18,20 +18,33 @@ const STD_LEVEL_DESC = {
   L2: '2–5 YoE',
   L3: '5–10 YoE',
   L4: '10–15 YoE',
-  L5: '15+ YoE',
+  L5: '15–20 YoE',
 };
 
 export function ComparePage() {
   const [levelMap, setLevelMap] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompanies, setSelectedCompanies] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [locations, setLocations] = useState([]);
 
+  // Fetch unique locations on mount
   useEffect(() => {
-    api.getLevelMap().then(data => {
+    api.getSalaries().then(data => {
+      const countries = [...new Set((data || []).map(s => getCountryFromLocation(s.location)).filter(Boolean))].sort();
+      setLocations(countries);
+    }).catch(() => {});
+  }, []);
+
+  // Fetch level map whenever location filter changes
+  useEffect(() => {
+    setLoading(true);
+    setSelectedCompanies([]); // reset selection when location changes
+    api.getLevelMap(selectedLocation || undefined).then(data => {
       setLevelMap(data || []);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [selectedLocation]);
 
   const companyNames = levelMap.map(c => capitalizeCompany(c.company));
 
@@ -49,9 +62,9 @@ export function ComparePage() {
     .map(name => levelMap.find(c => capitalizeCompany(c.company) === name))
     .filter(Boolean);
 
-  // YoE-axis mapping: 15 years = total axis, each year = PX_PER_YEAR pixels
-  const MAX_YOE = 15;
-  const PX_PER_YEAR = 40; // 15 years × 40px = 600px total height
+  // YoE-axis mapping: 20 years = total axis, each year = PX_PER_YEAR pixels
+  const MAX_YOE = 20;
+  const PX_PER_YEAR = 32; // 20 years × 32px = 640px total height
   const TOTAL_AXIS_HEIGHT = MAX_YOE * PX_PER_YEAR;
   const MIN_BLOCK_HEIGHT = 36; // minimum so text is readable
 
@@ -78,14 +91,21 @@ export function ComparePage() {
 
   if (loading) return <div className="p-section text-center text-muted">Loading level data...</div>;
 
-  // Standard level bands on the same YoE axis
+  // Standard level bands on the same YoE axis (20 bars)
   const STD_BANDS = [
     { level: 'L1', start: 0, end: 2 },
     { level: 'L2', start: 2, end: 5 },
     { level: 'L3', start: 5, end: 10 },
     { level: 'L4', start: 10, end: 15 },
-    { level: 'L5', start: 15, end: 16 }, // small sliver at bottom
+    { level: 'L5', start: 15, end: 20 },
   ];
+
+  // Build 20 individual year bars, each assigned to its level band
+  const yearBars = Array.from({ length: MAX_YOE }, (_, i) => {
+    const year = i + 1; // 1-indexed
+    const band = STD_BANDS.find(b => i >= b.start && i < b.end);
+    return { year, level: band?.level || 'L5', isFirstInBand: i === (band?.start ?? i), isLastInBand: i === (band?.end ?? i) - 1 };
+  });
 
   return (
     <div className="max-w-[1400px] mx-auto w-full px-lg py-section flex flex-col gap-xl">
@@ -93,6 +113,19 @@ export function ComparePage() {
         <h1 className="text-display-lg font-display text-ink mb-sm">Compare Levels</h1>
         <p className="text-body-md text-muted">See how internal company levels stack up. Heights represent years of experience bands.</p>
       </div>
+
+      {/* Filters Row */}
+      <div className="flex flex-col md:flex-row gap-lg">
+        {/* Location Filter */}
+        <div className="flex flex-col gap-xs w-full md:w-[280px]">
+          <label className="text-body-sm font-semibold text-ink">Filter by Country</label>
+          <SearchableSelect
+            options={['All Countries', ...locations]}
+            value={selectedLocation || 'All Countries'}
+            onChange={(val) => setSelectedLocation(val === 'All Countries' ? '' : val)}
+            placeholder="All Countries"
+          />
+        </div>
 
       {/* Company Selector */}
       <div className="flex flex-col gap-md max-w-[600px]">
@@ -127,6 +160,7 @@ export function ComparePage() {
           </div>
         )}
       </div>
+      </div>
 
       {/* Stacked Level Comparison */}
       {activeCompanies.length > 0 && (
@@ -156,13 +190,13 @@ export function ComparePage() {
                         }}
                       >
                         <span className="font-bold text-ink" style={{ fontSize: isSmall ? '11px' : '13px' }}>{block.level}</span>
-                        <span className="font-semibold text-ink" style={{ fontSize: isSmall ? '11px' : '13px' }}>{formatCurrency(block.avg_total)}</span>
+                        <span className="font-semibold text-ink" style={{ fontSize: isSmall ? '11px' : '13px' }}>{formatCurrency(block.avg_total, selectedLocation)}</span>
                         {!isSmall && <span className="text-muted" style={{ fontSize: '10px' }}>{block.avg_experience}y</span>}
 
                         {/* Hover tooltip */}
                         <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-ink text-white text-xs rounded-md px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-lg">
                           <div className="font-semibold">{block.level} → {block.standardized_levels.join(', ')} · {block.avg_experience} avg YoE</div>
-                          <div>Base: {formatCurrency(block.avg_base)} · Bonus: {formatCurrency(block.avg_bonus)} · Stock: {formatCurrency(block.avg_stock)}</div>
+                          <div>Base: {formatCurrency(block.avg_base, selectedLocation)} · Bonus: {formatCurrency(block.avg_bonus, selectedLocation)} · Stock: {formatCurrency(block.avg_stock, selectedLocation)}</div>
                           <div>{block.count} record{block.count > 1 ? 's' : ''}</div>
                         </div>
                       </div>
@@ -173,7 +207,7 @@ export function ComparePage() {
             );
           })}
 
-          {/* Standardized Levels Reference — same YoE axis */}
+          {/* Standardized Levels Reference */}
           <div className="w-[100px] shrink-0 flex flex-col">
             <div className="text-center mb-sm">
               <div className="text-title-md font-semibold text-ink">Std Level</div>
@@ -184,13 +218,12 @@ export function ComparePage() {
                   key={band.level}
                   className="flex flex-col items-center justify-center px-xs text-center"
                   style={{
-                    height: `${Math.max(MIN_BLOCK_HEIGHT, (band.end - band.start) * PX_PER_YEAR)}px`,
+                    height: `${(band.end - band.start) * PX_PER_YEAR}px`,
                     backgroundColor: STD_LEVEL_SHADES[band.level],
                     borderTop: idx > 0 ? '1px solid #e5e7eb' : 'none',
                   }}
                 >
                   <div className="text-title-sm font-bold text-ink">{band.level}</div>
-                  <div className="text-caption text-muted">{STD_LEVEL_DESC[band.level]}</div>
                 </div>
               ))}
             </div>
