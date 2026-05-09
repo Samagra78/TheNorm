@@ -11,6 +11,13 @@ const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+// DEBUG: Log the masked database URL to verify which DB Railway is using
+const maskedDbUrl = connectionString 
+  ? connectionString.replace(/:([^:@]+)@/, ':***@') 
+  : 'UNDEFINED';
+console.log(`[DEBUG] Booting up! Connected to Database: ${maskedDbUrl}`);
+
 const app = express();
 const port = process.env.PORT || 5000;
 
