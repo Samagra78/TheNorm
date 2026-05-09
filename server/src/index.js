@@ -110,6 +110,9 @@ app.post('/api/ingest-salary', upload.single('offer_letter'), async (req, res) =
         
         // REJECT if Gemma says it's faulty/fake
         if (!verification.verified) {
+          console.warn('REJECTED submission due to AI verification failure:');
+          console.warn('Discrepancies:', verification.discrepancies.join(', '));
+          
           return res.status(403).json({ 
             error: 'Verification failed', 
             details: 'The uploaded offer letter does not match your submitted data or appears to be invalid.',
@@ -534,6 +537,22 @@ app.get('/api/level-map', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Production: Serve static assets from client/dist
+const clientDistPath = path.join(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  // Robust fallback for SPA: any request not caught by static files or API routes
+  // is redirected to index.html (Express 5 safe)
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      res.sendFile(path.join(clientDistPath, 'index.html'));
+    } else {
+      next();
+    }
+  });
+  console.log('Serving production build from:', clientDistPath);
+}
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

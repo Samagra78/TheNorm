@@ -10,13 +10,30 @@ const { GoogleGenAI } = require('@google/genai');
 async function extractText(filePath, mimetype) {
   if (mimetype === 'application/pdf') {
     const dataBuffer = fs.readFileSync(filePath);
-    // Handle cases where pdf-parse might be exported as a default or direct function
-    const parser = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
-    if (typeof parser !== 'function') {
-      throw new Error('PDF parser is not properly loaded as a function');
+    
+    let text = '';
+    // Handle classic pdf-parse (function)
+    if (typeof pdfParse === 'function') {
+      const data = await pdfParse(dataBuffer);
+      text = data.text;
+    } 
+    // Handle modern pdf-parse (class-based, e.g. version 2.x)
+    else if (pdfParse.PDFParse || (pdfParse.default && pdfParse.default.PDFParse)) {
+      const PDFParseClass = pdfParse.PDFParse || pdfParse.default.PDFParse;
+      const instance = new PDFParseClass({ data: dataBuffer });
+      const result = await instance.getText();
+      text = result.text;
     }
-    const pdfData = await parser(dataBuffer);
-    return pdfData.text;
+    // Handle default export as a function
+    else if (pdfParse.default && typeof pdfParse.default === 'function') {
+      const data = await pdfParse.default(dataBuffer);
+      text = data.text;
+    }
+    else {
+      throw new Error('PDF parser is not properly loaded. Supported patterns (function or PDFParse class) not found.');
+    }
+    
+    return text;
   }
 
   // Image files — use Tesseract OCR
@@ -37,16 +54,27 @@ async function verifyWithGemma(extractedText, formData) {
 
   const ai = new GoogleGenAI({ apiKey });
 
+  const getCurrency = (loc) => {
+    if (loc.includes('India')) return 'INR (₹)';
+    if (loc.includes('UK') || loc.includes('London')) return 'GBP (£)';
+    if (loc.includes('Europe') || loc.includes('Germany')) return 'EUR (€)';
+    if (loc.includes('Canada')) return 'CAD ($)';
+    return 'USD ($)';
+  };
+
+  const currency = getCurrency(formData.location);
+
   const prompt = `You are an offer letter verification assistant. A user has submitted compensation data along with their offer letter. Your job is to compare the user's claimed data against the text extracted from their offer letter.
+Note: The currency is ${currency}.
 
 USER'S CLAIMED DATA:
 - Company: ${formData.company}
 - Role: ${formData.role}
 - Level: ${formData.level}
 - Location: ${formData.location}
-- Base Salary: $${formData.base_salary}
-- Bonus: $${formData.bonus}
-- Stock (yearly): $${formData.stock}
+- Base Salary: ${formData.base_salary} (${currency})
+- Bonus: ${formData.bonus} (${currency})
+- Stock (yearly): ${formData.stock} (${currency})
 
 EXTRACTED OFFER LETTER TEXT:
 ---
@@ -55,12 +83,12 @@ ${extractedText.substring(0, 4000)}
 
 INSTRUCTIONS:
 1. Compare the claimed data against the offer letter text.
-2. Check if company name, role/title, compensation figures roughly match.
+2. Check if company name, role/title, and compensation figures (in ${currency}) roughly match.
 3. Minor formatting differences are acceptable (e.g. "Software Engineer" vs "Software Eng.").
 4. If the offer letter text is unreadable or clearly not an offer letter, set verified to false.
 
 Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
-{"verified": true, "confidence": 85, "discrepancies": ["base salary shows $175,000 not $180,000"]}
+{"verified": true, "confidence": 85, "discrepancies": ["base salary shows 175,000 not 180,000"]}
 
 Where:
 - verified: boolean, true if the data broadly matches
@@ -69,8 +97,8 @@ Where:
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemma-3-27b-it',
-      contents: prompt,
+      model: 'gemini-2.5-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 
     const text = response.text.trim();

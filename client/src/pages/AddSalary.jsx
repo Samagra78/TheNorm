@@ -44,6 +44,7 @@ export function AddSalary() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [offerFile, setOfferFile] = useState(null);
+  const [error, setError] = useState(null);
   
   const [formData, setFormData] = useState({
     company: '',
@@ -163,6 +164,7 @@ export function AddSalary() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     
     try {
       const payload = { ...formData };
@@ -174,8 +176,10 @@ export function AddSalary() {
       setTimeout(() => navigate('/table'), 3000);
     } catch (err) {
       console.error(err);
-      const errorMsg = err.response?.data?.details || err.response?.data?.error || 'Failed to submit salary data.';
-      alert(errorMsg);
+      const apiError = err.response?.data;
+      // If we have a structured error from our API, use it. 
+      // Otherwise, fallback to the response string or a default.
+      setError(apiError || 'Failed to submit salary data.');
     } finally {
       setLoading(false);
     }
@@ -386,6 +390,22 @@ export function AddSalary() {
             </div>
           </div>
         </Card>
+
+        {error && (
+          <div className="bg-badge-orange/10 border border-orange-500/20 text-ink text-body-sm p-md rounded-md flex flex-col gap-1">
+            <div>
+              <span className="font-bold text-orange-600 mr-2">Submission Error:</span>
+              {typeof error === 'string' ? error : (error.details || error.error || 'Failed to submit salary data.')}
+            </div>
+            {error.discrepancies && error.discrepancies.length > 0 && (
+              <ul className="list-disc list-inside mt-1 text-xs opacity-80">
+                {error.discrepancies.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="flex justify-end gap-md pt-sm pb-xl">
           <Button variant="secondary" type="button" onClick={() => navigate(-1)}>Cancel</Button>
